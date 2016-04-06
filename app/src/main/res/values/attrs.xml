@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="ScoreView">
+        <attr name="overflowColor" format="color" />
+        <attr name="scoreColor" format="color" />
+        <attr name="score" format="float" /> <!-- Value between 0 and 1 -->
+        <attr name="labelPosition" format="enum">
+            <enum name="left" value="0"/>
+            <enum name="top" value="1"/>
+            <enum name="right" value="2"/>
+            <enum name="bottom" value="3"/>
+        </attr>
+        <attr name="labelText" format="string"/>
+    </declare-styleable>
+</resources>

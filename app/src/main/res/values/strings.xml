@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Image recognition</string>
+    <string name="menu_tab_camera">Camera</string>
+    <string name="open_drawer">Open drawer</string>
+    <string name="close_drawer">Close drawer</string>
+    <string name="face_data_expression">... seems to be %s</string>
+    <string name="happy">happy</string>
+    <string name="sad">sad</string>
+    <string name="angry">angry</string>
+    <string name="surprised">surprised</string>
+    <string name="face_data_expression_not_detected">... has no detected expression.</string>
+</resources>
