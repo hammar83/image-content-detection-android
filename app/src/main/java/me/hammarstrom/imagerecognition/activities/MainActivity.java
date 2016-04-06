@@ -1,19 +1,26 @@
 package me.hammarstrom.imagerecognition.activities;
 
+import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.content.DialogInterface;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
+import android.support.annotation.NonNull;
+import android.support.design.widget.Snackbar;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.OvershootInterpolator;
+import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
@@ -25,18 +32,24 @@ import com.google.api.services.vision.v1.model.FaceAnnotation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import me.hammarstrom.imagerecognition.R;
 import me.hammarstrom.imagerecognition.utilities.CameraPreview;
 import me.hammarstrom.imagerecognition.utilities.DeviceDimensionsHelper;
 import me.hammarstrom.imagerecognition.utilities.FaceFoundHelper;
+import me.hammarstrom.imagerecognition.utilities.PermissionUtils;
 import me.hammarstrom.imagerecognition.utilities.ScoreView;
 import me.hammarstrom.imagerecognition.vision.CloudVisionTask;
 import me.hammarstrom.imagerecognition.vision.CloudVisionTaskDoneListener;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener, CloudVisionTaskDoneListener {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
     private final String TAG = MainActivity.this.getClass().getName();
+
+    private static final int RC_HANDLE_CAMERA_PERM = 2;
 
     private Camera mCamera;
     private CameraPreview mCameraPreview;
@@ -47,14 +60,30 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Toolbar mToolbar;
     private LinearLayout mScoreResultLayout;
     private LinearLayout mLoadingLayout;
+    private Button mButtonReset;
 
+    /**
+     * Called when a response from Google Cloud Vision API is ready
+     *
+     * @param response The response from {@link CloudVisionTask}
+     */
+    private CloudVisionTaskDoneListener mVisionTaskListener = new CloudVisionTaskDoneListener() {
+        @Override
+        public void onTaskDone(BatchAnnotateImagesResponse response) {
+            mProcessingLayout.setVisibility(View.VISIBLE);
+            convertResponseToString(response);
+        }
+    };
+
+    /**
+     *
+     */
     private Camera.PictureCallback mPictureCallback = new Camera.PictureCallback() {
         @Override
-        public void onPictureTaken(byte[] data, Camera camera) {
-            Log.d(TAG, "onPicTaken");
-            Bitmap tmp = BitmapFactory.decodeByteArray(data, 0, data.length);
-            new CloudVisionTask(tmp, MainActivity.this).execute();
-            //mCamera.startPreview();
+        public void onPictureTaken(final byte[] data, Camera camera) {
+            final Bitmap tmp = BitmapFactory.decodeByteArray(data, 0, data.length);
+            new CloudVisionTask(tmp, mVisionTaskListener).execute();
+            showLoading(true);
         }
     };
 
@@ -62,18 +91,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         bindViews();
+
         mToolbar.setTitle("");
         setSupportActionBar(mToolbar);
         mCameraPreviewLayout.setOnClickListener(this);
+        mButtonReset.setOnClickListener(this);
 
         mTts = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
 
             @Override
             public void onInit(int status) {
                 if(status != TextToSpeech.ERROR) {
-                    Log.d(TAG, "TTS INITIALIZED");
                     mTts.setLanguage(Locale.UK);
                 }
             }
@@ -89,6 +118,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mProcessingLayout = (RelativeLayout) findViewById(R.id.processing_layout);
         mScoreResultLayout = (LinearLayout) findViewById(R.id.score_result_layout);
         mLoadingLayout = (LinearLayout) findViewById(R.id.loading_layout);
+        mButtonReset = (Button) findViewById(R.id.button_reset);
+    }
+
+    /**
+     * Method called if no result is received from
+     * Google Vision AsyncTask {@link CloudVisionTask}
+     * after 10 seconds
+     */
+    private void noResultAvailable() {
+        Snackbar.make(mCameraPreview, getString(R.string.no_response), Snackbar.LENGTH_LONG).show();
+        showLoading(false);
+        resetPreview();
     }
 
     /**
@@ -100,6 +141,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Camera camera = null;
         try {
             camera = Camera.open();
+
+            // Set auto focus mode
+            Camera.Parameters parameters = camera.getParameters();
+            parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+            camera.setParameters(parameters);
+
         } catch (Exception e) {
             // cannot get camera or does not exist
         }
@@ -115,6 +162,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if(show) {
             mLoadingLayout.setAlpha(0f);
             mLoadingLayout.setVisibility(View.VISIBLE);
+
             mLoadingLayout.animate()
                     .alpha(1f)
                     .setDuration(200)
@@ -128,8 +176,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         public void onAnimationEnd(Animator animation) {
                             super.onAnimationEnd(animation);
                             mLoadingLayout.setVisibility(View.GONE);
+                            mLoadingLayout.setAlpha(0f);
                         }
                     }).start();
+        }
+    }
+
+    private void createCameraSource() {
+        // Make sure we have permission to use camera
+        if(PermissionUtils.requestPermission(this, RC_HANDLE_CAMERA_PERM, Manifest.permission.CAMERA)) {
+            mCamera = getCameraInstance();
+            mCameraPreview = new CameraPreview(this, mCamera);
+            mCameraPreviewLayout.addView(mCameraPreview);
         }
     }
 
@@ -139,9 +197,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onResume() {
         super.onResume();
-        mCamera = getCameraInstance();
-        mCameraPreview = new CameraPreview(this, mCamera);
-        mCameraPreviewLayout.addView(mCameraPreview);
+        createCameraSource();
     }
 
     /**
@@ -172,11 +228,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         switch (v.getId()) {
             case R.id.camera_preview:
                 showLoading(true);
-                mProcessingLayout.setVisibility(View.VISIBLE);
                 mCameraPreviewLayout.setOnClickListener(null);
                 mCamera.takePicture(null, null, mPictureCallback);
-//                mCamera.setPreviewCallback(null);
-//                mCamera.stopPreview();
+                //mCamera.setPreviewCallback(null);
+                //mCamera.stopPreview();
+                break;
+            case R.id.button_reset:
+                resetPreview();
                 break;
         }
     }
@@ -228,6 +286,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 showScoreAnimations.addAll(scoreView.getShowScoreAnimationsList());
             }
 
+            // Set reset button visibility to visible
+            mButtonReset.setVisibility(View.VISIBLE);
+
             // Setup and play the animations
             AnimatorSet translationSet = new AnimatorSet();
             translationSet.playSequentially(scoreViewAnimations);
@@ -240,8 +301,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             AnimatorSet showScoreSet = new AnimatorSet();
             showScoreSet.playTogether(showScoreAnimations);
 
+
+
             AnimatorSet set = new AnimatorSet();
             set.play(translationSet).with(alphaSet).before(showScoreSet);
+            set.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    super.onAnimationEnd(animation);
+                    mButtonReset.animate().alpha(1f).start();
+                }
+            });
             set.start();
         }
 
@@ -256,14 +326,81 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mTts.speak(facesFound, TextToSpeech.QUEUE_ADD, null);
     }
 
+    /**
+     * Reset the camera preview
+     */
+    private void resetPreview() {
+        /**
+         * TODO
+         *
+         * Implement animation to fade out/translate ScoreViews
+         *
+         */
+        mProcessingLayout.animate()
+                .alpha(0f)
+                .setDuration(200)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        super.onAnimationEnd(animation);
+                        mProcessingLayout.setVisibility(View.GONE);
+                        mProcessingLayout.setAlpha(1f);
 
+                        // Remove all child views
+                        mScoreResultLayout.removeAllViews();
+
+                        // Hide the reset button
+                        mButtonReset.setAlpha(0f);
+                        mButtonReset.setVisibility(View.GONE);
+
+                        // Start camera preview and set click listener
+                        mCameraPreviewLayout.setOnClickListener(MainActivity.this);
+                        mCamera.startPreview();
+                    }
+                }).start();
+    }
+
+    /**
+     * Callback for the result from requesting permissions. This method
+     * is invoked for every call on {@link #requestPermissions(String[], int)}.
+     * <p>
+     * <strong>Note:</strong> It is possible that the permissions request interaction
+     * with the user is interrupted. In this case you will receive empty permissions
+     * and results arrays which should be treated as a cancellation.
+     * </p>
+     *
+     * @param requestCode  The request code passed in {@link #requestPermissions(String[], int)}.
+     * @param permissions  The requested permissions. Never null.
+     * @param grantResults The grant results for the corresponding permissions
+     *                     which is either {@link PackageManager#PERMISSION_GRANTED}
+     *                     or {@link PackageManager#PERMISSION_DENIED}. Never null.
+     * @see #requestPermissions(String[], int)
+     */
     @Override
-    public void onTaskDone(BatchAnnotateImagesResponse response) {
-        showLoading(false);
-        //mProcessingLayout.setVisibility(View.GONE);
-        mCameraPreviewLayout.setOnClickListener(this);
-        mCamera.startPreview();
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode != RC_HANDLE_CAMERA_PERM) {
+            Log.d(TAG, "Got unexpected permission result: " + requestCode);
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+            return;
+        }
 
-        convertResponseToString(response);
+        if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            createCameraSource();
+            return;
+        }
+
+        Log.e(TAG, "Permission not granted: results len = " + grantResults.length + " Result code = " + (grantResults.length > 0 ? grantResults[0] : "(empty)"));
+
+        DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                finish();
+            }
+        };
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Image recognition")
+                .setMessage(R.string.no_camera_permission)
+                .setPositiveButton(R.string.ok, listener)
+                .show();
     }
 }

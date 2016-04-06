@@ -28,8 +28,6 @@ import me.hammarstrom.imagerecognition.R;
 
 public class ScoreView extends View {
 
-    private RectF mOverflowBounds;
-    private RectF mScoreBounds;
     private Rect mLabelTextBounds;
     private Rect mScoreTextBounds;
 

@@ -9,4 +9,8 @@
     <string name="angry">angry</string>
     <string name="surprised">surprised</string>
     <string name="face_data_expression_not_detected">... has no detected expression.</string>
+    <string name="no_camera_permission">No permission to use camera</string>
+    <string name="ok">OK</string>
+    <string name="reset">Reset</string>
+    <string name="no_response">Unable to fetch result from Google Vision API</string>
 </resources>

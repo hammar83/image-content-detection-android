@@ -39,6 +39,7 @@ public class CloudVisionTask extends AsyncTask<Void, Void, BatchAnnotateImagesRe
 
     @Override
     protected BatchAnnotateImagesResponse doInBackground(Void... params) {
+        Log.d(TAG, "doInBackground()");
         try {
             HttpTransport httpTransport = AndroidHttp.newCompatibleTransport();
             JsonFactory jsonFactory = GsonFactory.getDefaultInstance();
