@@ -77,6 +77,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private LinearLayout mLoadingLayout;
     private Button mButtonReset;
 
+
     /**
      * Called when a response from Google Cloud Vision API is ready
      *
@@ -85,6 +86,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private CloudVisionTaskDoneListener mVisionTaskListener = new CloudVisionTaskDoneListener() {
         @Override
         public void onTaskDone(BatchAnnotateImagesResponse response) {
+            showLoading(false);
             mProcessingLayout.setVisibility(View.VISIBLE);
             convertResponseToString(response);
         }
@@ -98,7 +100,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         public void onPictureTaken(final byte[] data, Camera camera) {
             final Bitmap tmp = BitmapFactory.decodeByteArray(data, 0, data.length);
             new CloudVisionTask(tmp, mVisionTaskListener).execute();
-            showLoading(true);
         }
     };
 
@@ -137,17 +138,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     /**
-     * Method called if no result is received from
-     * Google Vision AsyncTask {@link CloudVisionTask}
-     * after 10 seconds
-     */
-    private void noResultAvailable() {
-        Snackbar.make(mCameraPreview, getString(R.string.no_response), Snackbar.LENGTH_LONG).show();
-        showLoading(false);
-        resetPreview();
-    }
-
-    /**
      * Helper method to get {@link Camera} instance
      *
      * @return camera
@@ -173,28 +163,28 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
      *
      * @param show if progress should be shown or not
      */
-    private void showLoading(boolean show) {
-        if(show) {
-            mLoadingLayout.setAlpha(0f);
-            mLoadingLayout.setVisibility(View.VISIBLE);
+    private void showLoading(final boolean show) {
+        ObjectAnimator alphaAnimator = ObjectAnimator.ofFloat(mLoadingLayout, "alpha", show ? 0f : 1f, show ? 1f : 0f);
+        alphaAnimator.setDuration(200);
+        alphaAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                super.onAnimationEnd(animation);
+                if(!show) {
+                    mLoadingLayout.setVisibility(View.GONE);
+                }
+            }
 
-            mLoadingLayout.animate()
-                    .alpha(1f)
-                    .setDuration(200)
-                    .start();
-        } else {
-            mLoadingLayout.animate()
-                    .alpha(0f)
-                    .setDuration(200)
-                    .setListener(new AnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(Animator animation) {
-                            super.onAnimationEnd(animation);
-                            mLoadingLayout.setVisibility(View.GONE);
-                            mLoadingLayout.setAlpha(0f);
-                        }
-                    }).start();
-        }
+            @Override
+            public void onAnimationStart(Animator animation) {
+                super.onAnimationStart(animation);
+                if(show) {
+                    mLoadingLayout.setAlpha(0f);
+                    mLoadingLayout.setVisibility(View.VISIBLE);
+                }
+            }
+        });
+        alphaAnimator.start();
     }
 
     private void createCameraSource() {
@@ -316,7 +306,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             AnimatorSet showScoreSet = new AnimatorSet();
             showScoreSet.playTogether(showScoreAnimations);
 
-
+            showLoading(false);
 
             AnimatorSet set = new AnimatorSet();
             set.play(translationSet).with(alphaSet).before(showScoreSet);
