@@ -8,10 +8,20 @@ import android.support.v4.content.ContextCompat;
 import java.util.ArrayList;
 
 /**
+ * Helper class to ask for permissions at run time.
+ *
  * Created by Fredrik Hammarström on 01/04/16.
  */
 public class PermissionUtils {
 
+    /**
+     * Request for permission
+     *
+     * @param activity The calling activity
+     * @param requestCode A request code to identify the result of the request
+     * @param permissions The permissions
+     * @return true if permission is granted
+     */
     public static boolean requestPermission(Activity activity, int requestCode, String... permissions) {
         boolean granted = true;
         ArrayList<String> permissionsNeeded = new ArrayList<>();
@@ -34,17 +44,4 @@ public class PermissionUtils {
             return false;
         }
     }
-
-
-    public static boolean permissionGranted(int requestCode, int permissionCode, int[] grantResults) {
-        if (requestCode == permissionCode) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-        return false;
-    }
-
 }

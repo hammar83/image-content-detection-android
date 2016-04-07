@@ -24,6 +24,7 @@ import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
@@ -55,6 +56,7 @@ import me.hammarstrom.imagerecognition.R;
 import me.hammarstrom.imagerecognition.utilities.CameraPreview;
 import me.hammarstrom.imagerecognition.utilities.DeviceDimensionsHelper;
 import me.hammarstrom.imagerecognition.utilities.FaceFoundHelper;
+import me.hammarstrom.imagerecognition.utilities.FaceGraphicOverlay;
 import me.hammarstrom.imagerecognition.utilities.PermissionUtils;
 import me.hammarstrom.imagerecognition.utilities.ScoreView;
 import me.hammarstrom.imagerecognition.vision.CloudVisionTask;
@@ -250,8 +252,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         List<EntityAnnotation> labels = response.getResponses().get(0).getLabelAnnotations();
 
         // Label string to be populated with data for TextToSpeech
-        String label = "The image may contain ";
-        if (labels != null) {
+        String label = "";
+        if (labels != null && labels.size() > 0) {
+            label = "The image may contain ";
             List<Animator> scoreViewAnimations = new ArrayList<>();
             List<Animator> scoreAlphaAnimations = new ArrayList<>();
             List<Animator> showScoreAnimations = new ArrayList<>();
@@ -318,11 +321,20 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }
             });
             set.start();
+        } else {
+            // Set reset button visibility to visible
+            mButtonReset.setVisibility(View.VISIBLE);
+            mButtonReset.setAlpha(1f);
         }
 
         // Handle detected faces
         String facesFound = "";
         if(faces != null && faces.size() > 0) {
+            FaceGraphicOverlay faceGraphicOverlay = new FaceGraphicOverlay(MainActivity.this);
+            faceGraphicOverlay.addFaces(faces);
+            faceGraphicOverlay.setTag("faceOverlay");
+            mCameraPreviewLayout.addView(faceGraphicOverlay);
+
             facesFound = FaceFoundHelper.getFacesFoundString(this, faces);
         }
 
@@ -361,6 +373,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         // Start camera preview and set click listener
                         mCameraPreviewLayout.setOnClickListener(MainActivity.this);
                         mCamera.startPreview();
+
+                        mCameraPreviewLayout.removeView(mCameraPreviewLayout.findViewWithTag("faceOverlay"));
                     }
                 }).start();
     }

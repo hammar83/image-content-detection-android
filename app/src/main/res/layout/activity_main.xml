@@ -15,8 +15,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="top"
+        android:background="#65000000"
         android:padding="8dp"
-        android:background="#90000000"
         android:visibility="gone">
 
         <LinearLayout

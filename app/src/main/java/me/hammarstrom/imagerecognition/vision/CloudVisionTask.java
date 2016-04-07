@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import me.hammarstrom.imagerecognition.utilities.Constants;
+import me.hammarstrom.imagerecognition.utilities.ImageHelper;
 
 /**
  * Created by Fredrik Hammarström on 03/04/16.
@@ -48,13 +49,12 @@ public class CloudVisionTask extends AsyncTask<Void, Void, BatchAnnotateImagesRe
     private CloudVisionTaskDoneListener mListener;
 
     public CloudVisionTask(Bitmap bitmap, CloudVisionTaskDoneListener listener) {
-        mBitmap = scaleBitmapDown(bitmap, 800);
+        mBitmap = ImageHelper.scaleBitmapDown(bitmap, 1100);
         mListener = listener;
     }
 
     @Override
     protected BatchAnnotateImagesResponse doInBackground(Void... params) {
-        Log.d(TAG, "doInBackground()");
         try {
             HttpTransport httpTransport = AndroidHttp.newCompatibleTransport();
             JsonFactory jsonFactory = GsonFactory.getDefaultInstance();
@@ -124,26 +124,5 @@ public class CloudVisionTask extends AsyncTask<Void, Void, BatchAnnotateImagesRe
         super.onPostExecute(response);
         mListener.onTaskDone(response);
     }
-
-    private Bitmap scaleBitmapDown(Bitmap bitmap, int maxDimension) {
-
-        int originalWidth = bitmap.getWidth();
-        int originalHeight = bitmap.getHeight();
-        int resizedWidth = maxDimension;
-        int resizedHeight = maxDimension;
-
-        if (originalHeight > originalWidth) {
-            resizedHeight = maxDimension;
-            resizedWidth = (int) (resizedHeight * (float) originalWidth / (float) originalHeight);
-        } else if (originalWidth > originalHeight) {
-            resizedWidth = maxDimension;
-            resizedHeight = (int) (resizedWidth * (float) originalHeight / (float) originalWidth);
-        } else if (originalHeight == originalWidth) {
-            resizedHeight = maxDimension;
-            resizedWidth = maxDimension;
-        }
-        return Bitmap.createScaledBitmap(bitmap, resizedWidth, resizedHeight, false);
-    }
-
 
 }

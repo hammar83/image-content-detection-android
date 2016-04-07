@@ -34,7 +34,7 @@ public class FaceFoundHelper {
     public static String getFacesFoundString(Context context, List<FaceAnnotation> faces) {
         String facesFound = "";
 
-        facesFound = "I think the image also contains ";
+        facesFound = "I think the image contains ";
         facesFound += faces.size() > 1 ? faces.size() + " faces" : " 1 face.";
 
         for(int i = 0; i < faces.size(); i++) {
