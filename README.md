@@ -1,4 +1,4 @@
-# image-recognition-android
+# image-content-detection-android
 
 An experimental Android application that utilizes [Google Cloud Vision API](https://cloud.google.com/vision/) to analyze the content of image taken by the camera. This implementation tries to detect labels and faces, but can be extended to detect for example text, logos, style, etc. 
 
