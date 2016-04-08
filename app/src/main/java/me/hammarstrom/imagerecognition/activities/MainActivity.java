@@ -24,12 +24,11 @@ import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Color;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
 import android.support.annotation.NonNull;
-import android.support.design.widget.Snackbar;
+import android.support.v4.view.GestureDetectorCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -48,9 +47,6 @@ import com.google.api.services.vision.v1.model.FaceAnnotation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import me.hammarstrom.imagerecognition.R;
 import me.hammarstrom.imagerecognition.utilities.CameraPreview;
@@ -59,8 +55,10 @@ import me.hammarstrom.imagerecognition.utilities.FaceFoundHelper;
 import me.hammarstrom.imagerecognition.utilities.FaceGraphicOverlay;
 import me.hammarstrom.imagerecognition.utilities.PermissionUtils;
 import me.hammarstrom.imagerecognition.utilities.ScoreView;
-import me.hammarstrom.imagerecognition.vision.CloudVisionTask;
-import me.hammarstrom.imagerecognition.vision.CloudVisionTaskDoneListener;
+import me.hammarstrom.imagerecognition.vision.CloudVisionRequest;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Action1;
+import rx.schedulers.Schedulers;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -73,26 +71,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private FrameLayout mCameraPreviewLayout;
     private RelativeLayout mProcessingLayout;
     private TextToSpeech mTts;
-
     private Toolbar mToolbar;
     private LinearLayout mScoreResultLayout;
     private LinearLayout mLoadingLayout;
     private Button mButtonReset;
+    private GestureDetectorCompat mGestureDetector;
 
-
-    /**
-     * Called when a response from Google Cloud Vision API is ready
-     *
-     * @param response The response from {@link CloudVisionTask}
-     */
-    private CloudVisionTaskDoneListener mVisionTaskListener = new CloudVisionTaskDoneListener() {
-        @Override
-        public void onTaskDone(BatchAnnotateImagesResponse response) {
-            showLoading(false);
-            mProcessingLayout.setVisibility(View.VISIBLE);
-            convertResponseToString(response);
-        }
-    };
 
     /**
      *
@@ -101,7 +85,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         public void onPictureTaken(final byte[] data, Camera camera) {
             final Bitmap tmp = BitmapFactory.decodeByteArray(data, 0, data.length);
-            new CloudVisionTask(tmp, mVisionTaskListener).execute();
+            CloudVisionRequest.doRequest(tmp)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(new Action1<BatchAnnotateImagesResponse>() {
+                        @Override
+                        public void call(BatchAnnotateImagesResponse response) {
+                            showLoading(false);
+                            mProcessingLayout.setVisibility(View.VISIBLE);
+                            convertResponseToString(response);
+                        }
+                    });
         }
     };
 
@@ -115,6 +109,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         setSupportActionBar(mToolbar);
         mCameraPreviewLayout.setOnClickListener(this);
         mButtonReset.setOnClickListener(this);
+
+//        mGestureDetector = new GestureDetectorCompat(this, new CameraPreviewGestureListener());
+//        mCameraPreviewLayout.setOnTouchListener(new View.OnTouchListener() {
+//            @Override
+//            public boolean onTouch(View v, MotionEvent event) {
+//                return mGestureDetector.onTouchEvent(event);
+//            }
+//        });
 
         mTts = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
 
@@ -183,6 +185,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 if(show) {
                     mLoadingLayout.setAlpha(0f);
                     mLoadingLayout.setVisibility(View.VISIBLE);
+                    mTts.speak(getString(R.string.tts_processing_image), TextToSpeech.QUEUE_FLUSH, null);
                 }
             }
         });
@@ -353,6 +356,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
          * Implement animation to fade out/translate ScoreViews
          *
          */
+
+        // Check if TTS still is active, then stop and say that we are resetting.
+        if(mTts.isSpeaking()) {
+            mTts.stop();
+            mTts.speak(getString(R.string.tts_reset), TextToSpeech.QUEUE_FLUSH, null);
+        }
+
+        // Hide process layout
         mProcessingLayout.animate()
                 .alpha(0f)
                 .setDuration(200)
@@ -363,7 +374,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         mProcessingLayout.setVisibility(View.GONE);
                         mProcessingLayout.setAlpha(1f);
 
-                        // Remove all child views
+                        // Remove all child views (ScoreViews)
                         mScoreResultLayout.removeAllViews();
 
                         // Hide the reset button
@@ -379,7 +390,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }).start();
     }
 
-    /**
+    /**§
      * Callback for the result from requesting permissions. This method
      * is invoked for every call on {@link #requestPermissions(String[], int)}.
      * <p>

@@ -1,22 +1,6 @@
-/*
- Copyright 2016 Fredrik Hammarström
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
- */
 package me.hammarstrom.imagerecognition.vision;
 
 import android.graphics.Bitmap;
-import android.os.AsyncTask;
 import android.util.Log;
 
 import com.google.api.client.extensions.android.http.AndroidHttp;
@@ -38,23 +22,34 @@ import java.util.ArrayList;
 
 import me.hammarstrom.imagerecognition.utilities.Constants;
 import me.hammarstrom.imagerecognition.utilities.ImageHelper;
+import rx.Observable;
+import rx.Subscriber;
 
 /**
- * Created by Fredrik Hammarström on 03/04/16.
+ * Created by Fredrik Hammarström on 08/04/16.
  */
-public class CloudVisionTask extends AsyncTask<Void, Void, BatchAnnotateImagesResponse> {
-    private final String TAG = CloudVisionTask.this.getClass().getName();
+public class CloudVisionRequest {
 
-    private Bitmap mBitmap;
-    private CloudVisionTaskDoneListener mListener;
+    private static final String TAG = "CloudVisionRequest";
 
-    public CloudVisionTask(Bitmap bitmap, CloudVisionTaskDoneListener listener) {
-        mBitmap = ImageHelper.scaleBitmapDown(bitmap, 1100);
-        mListener = listener;
+    private static final String VISION_TYPE_LABEL = "LABEL_DETECTION";
+    private static final String VISION_TYPE_FACE = "FACE_DETECTION";
+
+    private static final int LABEL_MAX_RESULT = 5;
+    private static final int FACES_MAX_RESULT = 10;
+
+    public static Observable<BatchAnnotateImagesResponse> doRequest(final Bitmap b) {
+        return Observable.create(new Observable.OnSubscribe<BatchAnnotateImagesResponse>() {
+            @Override
+            public void call(Subscriber<? super BatchAnnotateImagesResponse> subscriber) {
+                subscriber.onNext(doVisionRequest(b));
+            }
+        });
     }
 
-    @Override
-    protected BatchAnnotateImagesResponse doInBackground(Void... params) {
+    private static BatchAnnotateImagesResponse doVisionRequest(Bitmap b) {
+        final Bitmap bitmap = ImageHelper.scaleBitmapDown(b, 1100);
+
         try {
             HttpTransport httpTransport = AndroidHttp.newCompatibleTransport();
             JsonFactory jsonFactory = GsonFactory.getDefaultInstance();
@@ -75,7 +70,7 @@ public class CloudVisionTask extends AsyncTask<Void, Void, BatchAnnotateImagesRe
                 // Convert the bitmap to a JPEG
                 // Just in case it's a format that Android understands but Cloud Vision
                 ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                mBitmap.compress(Bitmap.CompressFormat.JPEG, 90, byteArrayOutputStream);
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, byteArrayOutputStream);
                 byte[] imageBytes = byteArrayOutputStream.toByteArray();
 
                 // Base64 encode the JPEG
@@ -85,13 +80,13 @@ public class CloudVisionTask extends AsyncTask<Void, Void, BatchAnnotateImagesRe
                 // add the features we want
                 annotateImageRequest.setFeatures(new ArrayList<Feature>() {{
                     Feature labelDetection = new Feature();
-                    labelDetection.setType("LABEL_DETECTION");
-                    labelDetection.setMaxResults(4);
+                    labelDetection.setType(VISION_TYPE_LABEL);
+                    labelDetection.setMaxResults(LABEL_MAX_RESULT);
                     add(labelDetection);
 
                     Feature faceDetection = new Feature();
-                    faceDetection.setType("FACE_DETECTION");
-                    faceDetection.setMaxResults(5);
+                    faceDetection.setType(VISION_TYPE_FACE);
+                    faceDetection.setMaxResults(FACES_MAX_RESULT);
                     add(faceDetection);
                 }});
 
@@ -101,13 +96,13 @@ public class CloudVisionTask extends AsyncTask<Void, Void, BatchAnnotateImagesRe
                 add(annotateImageRequest);
             }});
 
-            Vision.Images.Annotate annotateRequest = vision.images().annotate(batchAnnotateImagesRequest);
+            final Vision.Images.Annotate annotateRequest = vision.images().annotate(batchAnnotateImagesRequest);
 
             // Due to a bug: requests to Vision API containing large images fail when GZipped.
             annotateRequest.setDisableGZipContent(true);
 
-            BatchAnnotateImagesResponse response = annotateRequest.execute();
-            return response;
+
+            return annotateRequest.execute();
 
         } catch (GoogleJsonResponseException e) {
             Log.d(TAG, "failed to make API request because " + e.getContent());
@@ -117,12 +112,6 @@ public class CloudVisionTask extends AsyncTask<Void, Void, BatchAnnotateImagesRe
         }
 
         return null;
-    }
-
-    @Override
-    protected void onPostExecute(BatchAnnotateImagesResponse response) {
-        super.onPostExecute(response);
-        mListener.onTaskDone(response);
     }
 
 }

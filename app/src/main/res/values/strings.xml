@@ -13,4 +13,6 @@
     <string name="ok">OK</string>
     <string name="reset">Reset</string>
     <string name="no_response">Unable to fetch result from Google Vision API</string>
+    <string name="tts_reset">Canceled, reseting camera.</string>
+    <string name="tts_processing_image">Processing image, please wait.</string>
 </resources>
